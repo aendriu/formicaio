@@ -47,17 +47,22 @@ app.get('/api/photos', (req, res) => {
     fs.readdir(dirPath, (err, files) => {
         if (err) return res.status(500).send('Errore lettura cartella');
         
-        // Filtra solo i jpg, ordina dal più recente al più vecchio
+        // Filtra solo i jpg, calcola la dimensione totale e ordina
+        let totalSize = 0;
         const photos = files
             .filter(file => file.endsWith('.jpg'))
-            .map(file => ({
-                name: file,
-                time: fs.statSync(path.join(dirPath, file)).mtime.getTime()
-            }))
+            .map(file => {
+                const stats = fs.statSync(path.join(dirPath, file));
+                totalSize += stats.size;
+                return {
+                    name: file,
+                    time: stats.mtime.getTime()
+                };
+            })
             .sort((a, b) => b.time - a.time)
             .map(f => f.name);
 
-        res.json(photos);
+        res.json({ photos: photos, totalSizeBytes: totalSize });
     });
 });
 

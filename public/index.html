@@ -474,8 +474,13 @@
         async function fetchPhotos() {
             try {
                 const response = await fetch('/api/photos');
-                allPhotos = await response.json();
-                document.getElementById('photoCount').textContent = `${allPhotos.length} foto totali`;
+                const data = await response.json();
+                allPhotos = data.photos || [];
+                
+                // Formatta il peso in MB
+                const sizeMB = (data.totalSizeBytes / (1024 * 1024)).toFixed(2);
+                document.getElementById('photoCount').textContent = `${allPhotos.length} foto totali (${sizeMB} MB)`;
+                
                 renderGallery(getFilteredPhotos());
             } catch (error) {
                 console.error("Errore nel caricamento delle foto", error);
