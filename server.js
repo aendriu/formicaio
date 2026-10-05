@@ -61,6 +61,31 @@ app.get('/api/photos', (req, res) => {
     });
 });
 
+// --- ROTTA FRONTEND: ELIMINA UNA FOTO ---
+app.delete('/api/photos/:filename', (req, res) => {
+    const filename = req.params.filename;
+    
+    // Sicurezza: impedisce path traversal
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+        return res.status(400).send('Nome file non valido');
+    }
+    
+    const filePath = path.join(__dirname, 'uploads', filename);
+    
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).send('Foto non trovata');
+    }
+    
+    fs.unlink(filePath, (err) => {
+        if (err) {
+            console.error('Errore eliminazione:', err);
+            return res.status(500).send('Errore del server');
+        }
+        console.log(`Foto eliminata: ${filename}`);
+        res.status(200).send('Foto eliminata');
+    });
+});
+
 // Crea le cartelle se non esistono
 if (!fs.existsSync(path.join(__dirname, 'uploads'))) fs.mkdirSync(path.join(__dirname, 'uploads'));
 if (!fs.existsSync(path.join(__dirname, 'public'))) fs.mkdirSync(path.join(__dirname, 'public'));
