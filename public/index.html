@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoraggio Formicaio</title>
+    <style>
+        body { font-family: sans-serif; background-color: #1e1e1e; color: #fff; margin: 0; padding: 20px; }
+        h1 { text-align: center; color: #4CAF50; }
+        .gallery { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
+            gap: 15px; 
+            margin-top: 20px; 
+        }
+        .card { 
+            background: #2d2d2d; 
+            padding: 10px; 
+            border-radius: 8px; 
+            text-align: center; 
+        }
+        img { width: 100%; border-radius: 4px; display: block; }
+        p { margin: 10px 0 0 0; font-size: 0.9em; word-break: break-all; }
+        .refresh-btn {
+            display: block; width: 200px; margin: 0 auto; padding: 10px;
+            background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;
+        }
+        .refresh-btn:hover { background: #45a049; }
+    </style>
+</head>
+<body>
+
+    <h1>AntCam 🐜</h1>
+    <button class="refresh-btn" onclick="fetchPhotos()">Aggiorna Manualmente</button>
+    
+    <div class="gallery" id="gallery"></div>
+
+    <script>
+        async function fetchPhotos() {
+            try {
+                const response = await fetch('/api/photos');
+                const photos = await response.json();
+                const gallery = document.getElementById('gallery');
+                
+                gallery.innerHTML = ''; // Pulisce la galleria
+                
+                photos.forEach(photo => {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML = `
+                        <a href="/uploads/${photo}" target="_blank">
+                            <img src="/uploads/${photo}" loading="lazy" alt="Foto formicaio">
+                        </a>
+                        <p>${photo}</p>
+                    `;
+                    gallery.appendChild(card);
+                });
+            } catch (error) {
+                console.error("Errore nel caricamento delle foto", error);
+            }
+        }
+
+        // Carica le foto all'avvio della pagina
+        fetchPhotos();
+
+        // Si auto-aggiorna ogni 10 secondi (ideale per i tuoi test attuali)
+        setInterval(fetchPhotos, 10000); 
+    </script>
+</body>
+</html>
