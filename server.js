@@ -72,16 +72,18 @@ app.post('/api/dht', (req, res) => {
     });
 });
 
-// --- NUOVA ROTTA FRONTEND: ELENCO FOTO ---
+// --- NUOVA ROTTA FRONTEND: ELENCO FOTO (CON PAGINAZIONE) ---
 app.get('/api/photos', (req, res) => {
     const dirPath = path.join(__dirname, 'uploads');
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 0; // 0 = nessuna limitazione
     
     fs.readdir(dirPath, (err, files) => {
         if (err) return res.status(500).send('Errore lettura cartella');
         
         // Filtra solo i jpg, calcola la dimensione totale e ordina
         let totalSize = 0;
-        const photos = files
+        const allPhotos = files
             .filter(file => file.endsWith('.jpg'))
             .map(file => {
                 const stats = fs.statSync(path.join(dirPath, file));
@@ -94,7 +96,51 @@ app.get('/api/photos', (req, res) => {
             .sort((a, b) => b.time - a.time)
             .map(f => f.name);
 
-        res.json({ photos: photos, totalSizeBytes: totalSize });
+        let paginatedPhotos = allPhotos;
+        if (limit > 0) {
+            const startIndex = (page - 1) * limit;
+            const endIndex = page * limit;
+            paginatedPhotos = allPhotos.slice(startIndex, endIndex);
+        }
+
+        res.json({ 
+            photos: paginatedPhotos, 
+            totalSizeBytes: totalSize,
+            totalPhotosCount: allPhotos.length,
+            page: page,
+            limit: limit
+        });
+    });
+});
+
+// --- NUOVA ROTTA: ULTIMO DATO DHT11 ---
+app.get('/api/dht/latest', (req, res) => {
+    const csvPath = path.join(__dirname, 'dht_data.csv');
+    
+    if (!fs.existsSync(csvPath)) {
+        return res.json({ temperature: null, humidity: null, timestamp: null });
+    }
+
+    fs.readFile(csvPath, 'utf8', (err, data) => {
+        if (err) return res.status(500).send('Errore lettura file CSV');
+
+        const lines = data.trim().split('\n');
+        if (lines.length <= 1) {
+            return res.json({ temperature: null, humidity: null, timestamp: null });
+        }
+
+        const lastLine = lines[lines.length - 1];
+        const parts = lastLine.split(',');
+        
+        if (parts.length >= 3) {
+            res.json({
+                timestamp: parts[0],
+                temperature: parseFloat(parts[1]),
+                humidity: parseFloat(parts[2])
+            });
+        } else {
+            res.json({ temperature: null, humidity: null, timestamp: null });
+        }
     });
 });
 

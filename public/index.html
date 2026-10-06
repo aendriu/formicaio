@@ -403,6 +403,7 @@
             <span><span class="dot"></span> Auto-aggiornamento attivo</span>
             <span id="photoCount">0 foto</span>
             <span id="filteredCount"></span>
+            <span id="dhtStats" style="color: #66bb6a; font-weight: 500;">🌡️ --°C &nbsp;💧 --%</span>
         </div>
     </div>
 
@@ -420,10 +421,26 @@
         <button class="btn btn-primary" onclick="applyFilter()">Filtra</button>
         <button class="btn btn-secondary" onclick="clearFilter()">Reset</button>
         <button class="btn btn-secondary" onclick="fetchPhotos()">↻ Aggiorna</button>
+        <button class="btn btn-primary" onclick="openTimelapse()">🎬 Timelapse</button>
     </div>
 
     <div class="gallery-container">
         <div class="gallery" id="gallery"></div>
+        <div id="loadMoreContainer" style="text-align: center; margin-top: 30px; display: none;">
+            <button class="btn btn-secondary" onclick="loadMorePhotos()">⬇️ Carica altre foto</button>
+        </div>
+    </div>
+
+    <!-- Timelapse Modal -->
+    <div class="lightbox" id="timelapseModal" style="flex-direction: column; gap: 15px;">
+        <div style="background: #1e1e28; padding: 15px; border-radius: 12px; display: flex; gap: 15px; align-items: center; z-index: 1001;">
+            <button class="btn btn-primary" id="tlPlayBtn" onclick="toggleTimelapse()">⏸ Pausa</button>
+            <input type="range" id="tlSpeed" min="50" max="1000" step="50" value="100" onchange="updateSpeed()">
+            <span id="tlSpeedLabel" style="color: white; font-size: 0.8rem;">100ms/foto</span>
+            <button class="btn btn-danger" onclick="closeTimelapse()">Chiudi</button>
+        </div>
+        <img id="tlImg" src="" style="max-height: 75vh; max-width: 90vw; border-radius: 8px;">
+        <div id="tlInfo" style="color: white; font-family: monospace; font-size: 0.9rem;"></div>
     </div>
 
     <!-- Lightbox -->
@@ -449,6 +466,7 @@
     <script>
         let allPhotos = [];
         let pendingDelete = null;
+        let visibleCount = 50;
 
         // Estrae data/ora dal nome file: photo-DD-MM-YYYY-HH-MM-SS-mmm.jpg
         function parsePhotoDate(filename) {
@@ -528,6 +546,7 @@
             document.getElementById('dateTo').value = '';
             document.getElementById('timeTo').value = '';
             document.getElementById('filteredCount').textContent = '';
+            visibleCount = 50;
             renderGallery(allPhotos);
         }
 
@@ -542,14 +561,17 @@
                         <p>Nessuna foto trovata</p>
                     </div>
                 `;
+                document.getElementById('loadMoreContainer').style.display = 'none';
                 return;
             }
 
-            photos.forEach((photo, i) => {
+            const toRender = photos.slice(0, visibleCount);
+
+            toRender.forEach((photo, i) => {
                 const date = parsePhotoDate(photo);
                 const card = document.createElement('div');
                 card.className = 'card';
-                card.style.animationDelay = `${i * 0.05}s`;
+                card.style.animationDelay = `${(i % 50) * 0.05}s`;
                 card.innerHTML = `
                     <div class="img-wrapper" onclick="openLightbox('/uploads/${photo}')">
                         <img src="/uploads/${photo}" loading="lazy" alt="Foto formicaio">
@@ -559,11 +581,22 @@
                             <div class="date-text">📅 ${formatDate(date)}</div>
                             <div class="time-text">🕐 ${formatTime(date)}</div>
                         </div>
-                        <button class="btn-remove" onclick="askDelete('${photo}')">🗑️ Rimuovi</button>
+                        <button class="btn-remove" onclick="askDelete('${photo}')">🗑️</button>
                     </div>
                 `;
                 gallery.appendChild(card);
             });
+
+            if (photos.length > visibleCount) {
+                document.getElementById('loadMoreContainer').style.display = 'block';
+            } else {
+                document.getElementById('loadMoreContainer').style.display = 'none';
+            }
+        }
+
+        function loadMorePhotos() {
+            visibleCount += 50;
+            renderGallery(getFilteredPhotos());
         }
 
         // === Lightbox ===
@@ -630,9 +663,76 @@
             }
         });
 
+        // === Meteo DHT11 ===
+        async function fetchDHT() {
+            try {
+                const response = await fetch('/api/dht/latest');
+                const data = await response.json();
+                if (data.temperature !== null) {
+                    document.getElementById('dhtStats').innerHTML = `🌡️ ${data.temperature}°C &nbsp;💧 ${data.humidity}%`;
+                }
+            } catch (error) {
+                console.error("Errore meteo", error);
+            }
+        }
+
+        // === Timelapse ===
+        let tlInterval = null;
+        let tlIndex = 0;
+        let tlPhotos = [];
+        let tlSpeedMs = 100;
+        let tlPlaying = false;
+
+        function openTimelapse() {
+            tlPhotos = getFilteredPhotos().slice().reverse(); // Ordine cronologico per il video
+            if (tlPhotos.length === 0) return showToast('Nessuna foto filtrata per il timelapse!', true);
+            
+            tlIndex = 0;
+            tlSpeedMs = document.getElementById('tlSpeed').value;
+            document.getElementById('timelapseModal').classList.add('active');
+            tlPlaying = true;
+            document.getElementById('tlPlayBtn').textContent = '⏸ Pausa';
+            playNextFrame();
+        }
+
+        function playNextFrame() {
+            if (!tlPlaying) return;
+            if (tlIndex >= tlPhotos.length) {
+                tlIndex = 0; // Loop infinito
+            }
+            const photo = tlPhotos[tlIndex];
+            document.getElementById('tlImg').src = `/uploads/${photo}`;
+            
+            const d = parsePhotoDate(photo);
+            document.getElementById('tlInfo').textContent = `Foto ${tlIndex + 1} di ${tlPhotos.length} - ${formatDate(d)} ${formatTime(d)}`;
+            
+            tlIndex++;
+            tlInterval = setTimeout(playNextFrame, tlSpeedMs);
+        }
+
+        function toggleTimelapse() {
+            tlPlaying = !tlPlaying;
+            document.getElementById('tlPlayBtn').textContent = tlPlaying ? '⏸ Pausa' : '▶️ Play';
+            if (tlPlaying) playNextFrame();
+            else clearTimeout(tlInterval);
+        }
+
+        function updateSpeed() {
+            tlSpeedMs = document.getElementById('tlSpeed').value;
+            document.getElementById('tlSpeedLabel').textContent = `${tlSpeedMs}ms/foto`;
+        }
+
+        function closeTimelapse() {
+            tlPlaying = false;
+            clearTimeout(tlInterval);
+            document.getElementById('timelapseModal').classList.remove('active');
+        }
+
         // === Init ===
         fetchPhotos();
+        fetchDHT();
         setInterval(fetchPhotos, 10000);
+        setInterval(fetchDHT, 10000);
     </script>
 </body>
 </html>
