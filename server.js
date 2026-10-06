@@ -11,6 +11,8 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Per mos
 
 // Middleware per i caricamenti grezzi dell'ESP32
 app.use(express.raw({ type: 'image/jpeg', limit: '10mb' }));
+// Middleware per il parsing JSON (per i dati del DHT11)
+app.use(express.json());
 
 // --- ROTTA ESP32: RICEVE LE FOTO ---
 app.post('/api/upload-photo', (req, res) => {
@@ -37,6 +39,36 @@ app.post('/api/upload-photo', (req, res) => {
         }
         console.log(`Immagine salvata con successo: ${fileName} (${req.body.length} bytes)`);
         res.status(200).send('Foto ricevuta!');
+    });
+});
+
+// --- NUOVA ROTTA: SALVATAGGIO DATI DHT11 SU CSV ---
+app.post('/api/dht', (req, res) => {
+    const { temperature, humidity } = req.body;
+
+    if (temperature === undefined || humidity === undefined) {
+        return res.status(400).send('Dati mancanti (temperature, humidity)');
+    }
+
+    const now = new Date();
+    // Formato: YYYY-MM-DD HH:mm:ss
+    const timestamp = now.toISOString().replace('T', ' ').substring(0, 19);
+    const csvLine = `${timestamp},${temperature},${humidity}\n`;
+    
+    const csvPath = path.join(__dirname, 'dht_data.csv');
+    
+    // Se il file non esiste, crealo con l'intestazione
+    if (!fs.existsSync(csvPath)) {
+        fs.writeFileSync(csvPath, 'timestamp,temperature,humidity\n');
+    }
+
+    fs.appendFile(csvPath, csvLine, (err) => {
+        if (err) {
+            console.error('Errore scrittura CSV:', err);
+            return res.status(500).send('Errore interno del server');
+        }
+        console.log(`[DHT11] Dati salvati: ${temperature}°C, ${humidity}%`);
+        res.status(200).send('Dati salvati correttamente');
     });
 });
 
