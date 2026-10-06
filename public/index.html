@@ -682,6 +682,7 @@
         let tlPhotos = [];
         let tlSpeedMs = 100;
         let tlPlaying = false;
+        let tlImageObj = new Image(); // Usato per precaricare i frame
 
         function openTimelapse() {
             tlPhotos = getFilteredPhotos().slice().reverse(); // Ordine cronologico per il video
@@ -700,14 +701,35 @@
             if (tlIndex >= tlPhotos.length) {
                 tlIndex = 0; // Loop infinito
             }
+            
             const photo = tlPhotos[tlIndex];
-            document.getElementById('tlImg').src = `/uploads/${photo}`;
+            const startTime = Date.now();
             
-            const d = parsePhotoDate(photo);
-            document.getElementById('tlInfo').textContent = `Foto ${tlIndex + 1} di ${tlPhotos.length} - ${formatDate(d)} ${formatTime(d)}`;
-            
-            tlIndex++;
-            tlInterval = setTimeout(playNextFrame, tlSpeedMs);
+            tlImageObj.onload = () => {
+                if (!tlPlaying) return; // Interrotto mentre caricava
+                
+                // Disegna l'immagine solo quando è completamente scaricata
+                document.getElementById('tlImg').src = tlImageObj.src;
+                
+                const d = parsePhotoDate(photo);
+                document.getElementById('tlInfo').textContent = `Foto ${tlIndex + 1} di ${tlPhotos.length} - ${formatDate(d)} ${formatTime(d)}`;
+                
+                tlIndex++;
+                
+                // Mantiene il ritmo sottraendo il tempo di download
+                const elapsed = Date.now() - startTime;
+                const remainingTime = Math.max(0, tlSpeedMs - elapsed);
+                
+                tlInterval = setTimeout(playNextFrame, remainingTime);
+            };
+
+            tlImageObj.onerror = () => {
+                if (!tlPlaying) return;
+                tlIndex++; // Salta la foto se corrotta
+                tlInterval = setTimeout(playNextFrame, tlSpeedMs);
+            };
+
+            tlImageObj.src = `/uploads/${photo}`;
         }
 
         function toggleTimelapse() {
