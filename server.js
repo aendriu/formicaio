@@ -72,6 +72,36 @@ app.post('/api/dht', (req, res) => {
     });
 });
 
+// --- NUOVA ROTTA: SALVATAGGIO DATI LASER SU CSV ---
+app.post('/api/laser', (req, res) => {
+    const { distance } = req.body;
+
+    if (distance === undefined) {
+        return res.status(400).send('Dati mancanti (distance)');
+    }
+
+    const now = new Date();
+    // Formato: YYYY-MM-DD HH:mm:ss.SSS (aggiungo millisecondi per maggiore precisione sui movimenti rapidi)
+    const timestamp = now.toISOString().replace('T', ' ').replace('Z', '');
+    const csvLine = `${timestamp},${distance}\n`;
+    
+    const csvPath = path.join(__dirname, 'laser_data.csv');
+    
+    // Se il file non esiste, crealo con l'intestazione
+    if (!fs.existsSync(csvPath)) {
+        fs.writeFileSync(csvPath, 'timestamp,distance_mm\n');
+    }
+
+    fs.appendFile(csvPath, csvLine, (err) => {
+        if (err) {
+            console.error('Errore scrittura CSV laser:', err);
+            return res.status(500).send('Errore interno del server');
+        }
+        console.log(`[LASER] Rilevamento: ${distance} mm`);
+        res.status(200).send('Dati laser salvati');
+    });
+});
+
 // --- NUOVA ROTTA FRONTEND: ELENCO FOTO (CON PAGINAZIONE) ---
 app.get('/api/photos', (req, res) => {
     const dirPath = path.join(__dirname, 'uploads');
@@ -140,6 +170,36 @@ app.get('/api/dht/latest', (req, res) => {
             });
         } else {
             res.json({ temperature: null, humidity: null, timestamp: null });
+        }
+    });
+});
+
+// --- NUOVA ROTTA: ULTIMO DATO LASER ---
+app.get('/api/laser/latest', (req, res) => {
+    const csvPath = path.join(__dirname, 'laser_data.csv');
+    
+    if (!fs.existsSync(csvPath)) {
+        return res.json({ distance: null, timestamp: null });
+    }
+
+    fs.readFile(csvPath, 'utf8', (err, data) => {
+        if (err) return res.status(500).send('Errore lettura file CSV');
+
+        const lines = data.trim().split('\n');
+        if (lines.length <= 1) {
+            return res.json({ distance: null, timestamp: null });
+        }
+
+        const lastLine = lines[lines.length - 1];
+        const parts = lastLine.split(',');
+        
+        if (parts.length >= 2) {
+            res.json({
+                timestamp: parts[0],
+                distance: parseFloat(parts[1])
+            });
+        } else {
+            res.json({ distance: null, timestamp: null });
         }
     });
 });
