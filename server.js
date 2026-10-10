@@ -174,12 +174,12 @@ app.get('/api/dht/latest', (req, res) => {
     });
 });
 
-// --- NUOVA ROTTA: ULTIMO DATO LASER ---
+// --- NUOVA ROTTA: ULTIMO DATO LASER E STATISTICHE ---
 app.get('/api/laser/latest', (req, res) => {
     const csvPath = path.join(__dirname, 'laser_data.csv');
     
     if (!fs.existsSync(csvPath)) {
-        return res.json({ distance: null, timestamp: null });
+        return res.json({ distance: null, timestamp: null, antCount: 0 });
     }
 
     fs.readFile(csvPath, 'utf8', (err, data) => {
@@ -187,19 +187,24 @@ app.get('/api/laser/latest', (req, res) => {
 
         const lines = data.trim().split('\n');
         if (lines.length <= 1) {
-            return res.json({ distance: null, timestamp: null });
+            return res.json({ distance: null, timestamp: null, antCount: 0 });
         }
 
         const lastLine = lines[lines.length - 1];
         const parts = lastLine.split(',');
         
+        // Stimiamo le formiche passate: un evento in entrata e uno in uscita.
+        // Righe totali (esclusa l'intestazione) diviso 2.
+        const antCount = Math.floor((lines.length - 1) / 2);
+        
         if (parts.length >= 2) {
             res.json({
                 timestamp: parts[0],
-                distance: parseFloat(parts[1])
+                distance: parseFloat(parts[1]),
+                antCount: antCount
             });
         } else {
-            res.json({ distance: null, timestamp: null });
+            res.json({ distance: null, timestamp: null, antCount: antCount });
         }
     });
 });

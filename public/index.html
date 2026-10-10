@@ -403,7 +403,8 @@
             <span><span class="dot"></span> Auto-aggiornamento attivo</span>
             <span id="photoCount">0 foto</span>
             <span id="filteredCount"></span>
-            <span id="dhtStats" style="color: #66bb6a; font-weight: 500;">🌡️ --°C &nbsp;💧 --%</span>
+            <span id="dhtStats" style="color: #66bb6a; font-weight: 500;" title="Nessun dato">🌡️ --°C &nbsp;💧 --%</span>
+            <span id="laserStats" style="color: #ffb74d; font-weight: 500;" title="Nessun dato">🐜 0 formiche passate</span>
         </div>
     </div>
 
@@ -669,10 +670,27 @@
                 const response = await fetch('/api/dht/latest');
                 const data = await response.json();
                 if (data.temperature !== null) {
-                    document.getElementById('dhtStats').innerHTML = `🌡️ ${data.temperature}°C &nbsp;💧 ${data.humidity}%`;
+                    const timeOnly = data.timestamp ? data.timestamp.split(' ')[1].split('.')[0] : '--:--';
+                    document.getElementById('dhtStats').innerHTML = `🌡️ ${data.temperature}°C &nbsp;💧 ${data.humidity}% <span style="font-size:0.75rem; color:#888;">(Agg. ${timeOnly})</span>`;
+                    document.getElementById('dhtStats').title = "Ultimo aggiornamento: " + data.timestamp;
                 }
             } catch (error) {
                 console.error("Errore meteo", error);
+            }
+        }
+
+        // === Laser e Formiche ===
+        async function fetchLaser() {
+            try {
+                const response = await fetch('/api/laser/latest');
+                const data = await response.json();
+                if (data.antCount !== undefined) {
+                    const timeOnly = data.timestamp ? data.timestamp.split(' ')[1].split('.')[0] : '--:--';
+                    document.getElementById('laserStats').innerHTML = `🐜 ${data.antCount} formiche passate <span style="font-size:0.75rem; color:#888;">(Agg. ${timeOnly})</span>`;
+                    document.getElementById('laserStats').title = "Ultimo movimento: " + (data.timestamp || "Mai");
+                }
+            } catch (error) {
+                console.error("Errore laser", error);
             }
         }
 
@@ -753,8 +771,10 @@
         // === Init ===
         fetchPhotos();
         fetchDHT();
+        fetchLaser();
         setInterval(fetchPhotos, 10000);
         setInterval(fetchDHT, 10000);
+        setInterval(fetchLaser, 2000); // Il laser si aggiorna più velocemente
     </script>
 </body>
 </html>
